@@ -1,0 +1,20 @@
+﻿name: Deployment Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  provision-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Provision Infrastructure
+        run: |
+          chmod +x infrastructure/deploy.sh
+          ./infrastructure/deploy.sh
+        env:
+          RG: ${{ secrets.AZURE_RG }}
+          ENV: Production
