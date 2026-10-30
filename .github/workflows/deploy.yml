@@ -11,10 +11,9 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Provision Infrastructure
+      - name: Run Orchestrator
         run: |
-          chmod +x infrastructure/deploy.sh
-          ./infrastructure/deploy.sh
+          pip install requests
+          python3 infrastructure/fabric_orchestrator.py
         env:
-          RG: ${{ secrets.AZURE_RG }}
-          ENV: Production
+          FABRIC_TOKEN: ${{ secrets.FABRIC_TOKEN }}
