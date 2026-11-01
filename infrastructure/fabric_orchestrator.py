@@ -57,14 +57,7 @@ def main():
 
         if existing_ws:
             ws_id = existing_ws['id']
-            print(f"Found existing workspace: {workspace_id if 'workspace_id' in locals() else ws_id}")
-            # If capacity ID is available and different, update it or assign capacity
-            if capacity_id:
-                try:
-                    fabric_api_call('POST', f'workspaces/{ws_id}/assignCapacity', token, {'capacityId': capacity_id})
-                    print(f"Assigned capacity {capacity_id} to existing workspace.")
-                except Exception as cap_err:
-                    print(f"Note: Could not assign capacity (might already be assigned): {cap_err}")
+            print(f"Found existing workspace: {ws_id}")
         else:
             workspace_data = {'displayName': workspace_name}
             if capacity_id:
@@ -83,29 +76,50 @@ def main():
             print('Warning: --git-repo not provided. Skipping Git integration.')
             print('Provide --git-repo org/repo to enable GitHub integration, or use --skip-git')
         else:
-            # Convert org/repo to owner/repository structure if needed or pass directly
+            # Format gitProviderDetails payload according to Fabric v1 API requirements
             repo_parts = args.git_repo.split('/')
             owner = repo_parts[0] if len(repo_parts) == 2 else ''
             name = repo_parts[1] if len(repo_parts) == 2 else args.git_repo
 
+            # Format directory path: must start with slash or be empty/root
+            directory = args.git_directory.strip('/')
+            directory_path = f"/{directory}" if directory else "/"
+
             git_config = {
                 'gitProviderDetails': {
                     'gitProvider': args.git_provider,
+                    'ownerName': owner,
                     'organizationName': owner,
                     'repositoryName': name,
                     'branchName': args.git_branch,
-                    'directoryName': f"/{args.git_directory.strip('/')}"
+                    'directoryName': directory_path
                 }
             }
             try:
+                # 1. Connect to Git
+                print(f"Connecting workspace {ws_id} to Git ({args.git_provider}: {owner}/{name}, branch: {args.git_branch}, dir: {directory_path})...")
                 fabric_api_call('POST', f'workspaces/{ws_id}/git/connect', token, git_config)
                 print(f'Git Connected to {args.git_provider}: {args.git_repo}')
+            except Exception as e:
+                # If connection fails with 400 because it is already connected, try continuing
+                print(f"Git Connect response/warning: {e}")
 
-                # 3. Git Update
-                fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, {'workspaceHead': 'HEAD'})
+            try:
+                # 2. Sync / Update from Git
+                print("Initiating Git sync (updateFromGit)...")
+                fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, {
+                    'workspaceHead': 'HEAD',
+                    'remoteCommitHash': '',
+                    'conflictResolution': {
+                        'conflictResolutionType': 'PreferRemote'
+                    },
+                    'options': {
+                        'allowExceptions': True
+                    }
+                })
                 print('Sync from Git Complete.')
             except Exception as e:
-                print(f"Git integration call failed: {e}")
+                print(f"Git Update call failed: {e}")
                 print("Note: Service Principals (OIDC) require tenant-level 'Service principals can use Fabric APIs' and 'Service principals can integrate with Git' tenant settings enabled in Fabric Admin Portal.")
                 raise e
     else:

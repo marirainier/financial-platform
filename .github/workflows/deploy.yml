@@ -42,6 +42,12 @@ jobs:
           pip install requests
 
       - name: Run Fabric Orchestrator
-        run: python infrastructure/fabric_orchestrator.py --workspace-name "FinancialRevenuePlatform" --git-repo "marirainier/financial-platform"
+        run: |
+          python infrastructure/fabric_orchestrator.py \
+            --workspace-name "FinancialRevenuePlatform" \
+            --git-provider GitHub \
+            --git-repo "${{ github.repository }}" \
+            --git-branch "${{ github.ref_name }}" \
+            --git-directory "fabric"
         env:
           FABRIC_TOKEN: ${{ env.FABRIC_TOKEN }}
