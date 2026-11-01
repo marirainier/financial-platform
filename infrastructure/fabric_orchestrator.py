@@ -6,8 +6,10 @@ def fabric_api_call(method, endpoint, token, data=None):
     headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
     url = f'https://api.fabric.microsoft.com/v1/{endpoint}'
     response = requests.request(method, url, headers=headers, json=data)
+    if not response.ok:
+        print(f"API Error ({response.status_code}) on {method} {url}: {response.text}")
     response.raise_for_status()
-    return response.json()
+    return response.json() if response.text else {}
 
 def get_trial_capacity_id(token):
     """Get the first available Fabric Trial capacity ID."""
@@ -62,18 +64,31 @@ def main():
             print('Warning: --git-repo not provided. Skipping Git integration.')
             print('Provide --git-repo org/repo to enable GitHub integration, or use --skip-git')
         else:
-            git_config = {
-                'gitProvider': args.git_provider,
-                'repository': args.git_repo,
-                'branch': args.git_branch,
-                'directory': args.git_directory
-            }
-            fabric_api_call('POST', f'workspaces/{ws_id}/gitConnect', token, git_config)
-            print(f'Git Connected to {args.git_provider}: {args.git_repo}')
+            # Convert org/repo to owner/repository structure if needed or pass directly
+            repo_parts = args.git_repo.split('/')
+            owner = repo_parts[0] if len(repo_parts) == 2 else ''
+            name = repo_parts[1] if len(repo_parts) == 2 else args.git_repo
 
-            # 3. Git Update
-            fabric_api_call('POST', f'workspaces/{ws_id}/gitUpdate', token, {'mode': 'All'})
-            print('Sync from Git Complete.')
+            git_config = {
+                'gitProviderDetails': {
+                    'gitProvider': args.git_provider,
+                    'organizationName': owner,
+                    'repositoryName': name,
+                    'branchName': args.git_branch,
+                    'directoryName': f"/{args.git_directory.strip('/')}"
+                }
+            }
+            try:
+                fabric_api_call('POST', f'workspaces/{ws_id}/git/connect', token, git_config)
+                print(f'Git Connected to {args.git_provider}: {args.git_repo}')
+
+                # 3. Git Update
+                fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, {'workspaceHead': 'HEAD'})
+                print('Sync from Git Complete.')
+            except Exception as e:
+                print(f"Git integration call failed: {e}")
+                print("Note: Service Principals (OIDC) require tenant-level 'Service principals can use Fabric APIs' and 'Service principals can integrate with Git' tenant settings enabled in Fabric Admin Portal.")
+                raise e
     else:
         print('Git integration skipped (--skip-git).')
 
