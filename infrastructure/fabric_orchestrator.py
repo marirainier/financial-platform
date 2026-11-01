@@ -49,14 +49,33 @@ def main():
         else:
             print('No Trial capacity found. Workspace will be created without capacity (use --capacity-id to specify).')
 
-    # 1. Create Workspace
-    workspace_data = {'displayName': workspace_name}
-    if capacity_id:
-        workspace_data['capacityId'] = capacity_id
+    # 1. Check if workspace already exists, otherwise create it
+    print(f"Checking existing workspaces for '{workspace_name}'...")
+    try:
+        workspaces_response = fabric_api_call('GET', 'workspaces', token)
+        existing_ws = next((w for w in workspaces_response.get('value', []) if w.get('displayName') == workspace_name), None)
 
-    ws = fabric_api_call('POST', 'workspaces', token, workspace_data)
-    ws_id = ws['id']
-    print(f'Workspace Created: {ws_id}')
+        if existing_ws:
+            ws_id = existing_ws['id']
+            print(f"Found existing workspace: {workspace_id if 'workspace_id' in locals() else ws_id}")
+            # If capacity ID is available and different, update it or assign capacity
+            if capacity_id:
+                try:
+                    fabric_api_call('POST', f'workspaces/{ws_id}/assignCapacity', token, {'capacityId': capacity_id})
+                    print(f"Assigned capacity {capacity_id} to existing workspace.")
+                except Exception as cap_err:
+                    print(f"Note: Could not assign capacity (might already be assigned): {cap_err}")
+        else:
+            workspace_data = {'displayName': workspace_name}
+            if capacity_id:
+                workspace_data['capacityId'] = capacity_id
+
+            ws = fabric_api_call('POST', 'workspaces', token, workspace_data)
+            ws_id = ws['id']
+            print(f'Workspace Created: {ws_id}')
+    except Exception as create_err:
+        print(f"Error handling workspace creation/lookup: {create_err}")
+        raise create_err
 
     # 2. Git Connect (if not skipped)
     if not args.skip_git:
