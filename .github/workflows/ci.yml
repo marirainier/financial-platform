@@ -1,0 +1,83 @@
+name: "CI Pipeline"
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      deploy_to_fabric:
+        description: 'Deploy to Fabric workspace'
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Test Generator Script (Hot/Cold Data Ingestion)
+        run: |
+          python src/financial_transforms/generator.py --mode both --hot-count 20 --cold-count 100
+
+      - name: Run Unit Tests
+        run: |
+          pytest -v
+
+  deploy-to-fabric:
+    needs: validate-and-test
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_to_fabric == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Authenticate securely to Azure via Workload Identity Federation (OIDC)
+      - name: Azure OIDC Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Fabric Bearer Token
+        id: get-token
+        run: |
+          TOKEN=$(az account get-access-token --resource https://analysis.windows.net/powerbi/api --query accessToken -o tsv)
+          echo "::add-mask::$TOKEN"
+          echo "FABRIC_TOKEN=$TOKEN" >> $GITHUB_ENV
+
+      - name: Deploy to Fabric Workspace
+        env:
+          FABRIC_TOKEN: ${{ env.FABRIC_TOKEN }}
+        run: |
+          python infrastructure/fabric_orchestrator.py \
+            --workspace-name "FinancialRevenuePlatform" \
+            --git-provider GitHub \
+            --git-repo ${{ github.repository }} \
+            --git-branch ${{ github.ref_name }} \
+            --git-directory fabric

@@ -1,0 +1,27 @@
+{
+  "library_name": "vl_financial_settings",
+  "description": "Environment variable overrides for Fabric pipelines and notebooks",
+  "variables": {
+    "environment": {
+      "type": "string",
+      "defaultValue": "Development",
+      "allowedValues": ["Development", "Test", "Production"]
+    },
+    "bronze_path": {
+      "type": "string",
+      "defaultValue": "abfss://workspace@onelake.dfs.fabric.microsoft.com/LH_Bronze.Lakehouse/Files/landing"
+    },
+    "silver_path": {
+      "type": "string",
+      "defaultValue": "abfss://workspace@onelake.dfs.fabric.microsoft.com/LH_Silver.Lakehouse/Tables"
+    },
+    "gold_warehouse": {
+      "type": "string",
+      "defaultValue": "DW_Gold"
+    },
+    "retries": {
+      "type": "int",
+      "defaultValue": 2
+    }
+  }
+}

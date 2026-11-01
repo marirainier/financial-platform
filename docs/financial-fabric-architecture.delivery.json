@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "2f8514c4-7626-4b0b-8f8a-69ade4f65622",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "C:\\Mari\\candidate.json",
+  "output": "C:\\Mari\\docs\\financial-fabric-architecture.html",
+  "specification": {
+    "sha256": "1ccf77e05f184c3197976f6998cfc8ec055b563cf4932bc7a17decbbec3efce0",
+    "bytes": 4675
+  },
+  "artifact": {
+    "sha256": "38a5361f231dc979187dbd1d1fcf597edd5f7d9a51f71fba189498778cbc9566",
+    "bytes": 855156
+  }
+}

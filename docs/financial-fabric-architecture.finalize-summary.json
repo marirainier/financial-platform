@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "fail",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "C:\\Mari\\candidate.json",
+    "sha256": "1ccf77e05f184c3197976f6998cfc8ec055b563cf4932bc7a17decbbec3efce0",
+    "bytes": 4675
+  },
+  "artifact": {
+    "path": "C:\\Mari\\docs\\financial-fabric-architecture.html",
+    "sha256": "38a5361f231dc979187dbd1d1fcf597edd5f7d9a51f71fba189498778cbc9566",
+    "bytes": 855156
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "fail"
+  },
+  "failedStage": "browser-check",
+  "diagnostics": [
+    {
+      "code": "viewer/browser-check-runtime",
+      "severity": "error",
+      "message": "browser-check could not complete its Chrome inspection.",
+      "subject": {
+        "artifact": "C:\\Mari\\docs\\financial-fabric-architecture.html"
+      },
+      "evidence": {
+        "reason": "Chrome navigation failed: net::ERR_FAILED"
+      },
+      "supportedFixes": [
+        "resolve the reported Chrome inspection error, then rerun browser-check"
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 1,
+    "shown": 1,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "C:\\Mari\\docs\\financial-fabric-architecture.finalize.json",
+    "summaryReceipt": "C:\\Mari\\docs\\financial-fabric-architecture.finalize-summary.json",
+    "browserCheckReceipt": "C:\\Mari\\docs\\financial-fabric-architecture.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-30T05:01:06.237Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 4322,
+  "browserCheck": {
+    "requested": true,
+    "ran": false
+  }
+}

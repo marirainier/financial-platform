@@ -1,19 +1,42 @@
-﻿name: Deployment Pipeline
+﻿name: Deploy Fabric Workspace
 
 on:
   push:
     branches: [ main ]
 
+# Required permission to request the OIDC token from GitHub
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
-  provision-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run Orchestrator
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Authenticate securely to Azure via Workload Identity Federation (OIDC)
+      - name: Azure OIDC Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Fabric Bearer Token
+        id: get-token
         run: |
-          pip install requests
-          python3 infrastructure/fabric_orchestrator.py
+          TOKEN=$(az account get-access-token --resource https://analysis.windows.net/powerbi/api --query accessToken -o tsv)
+          echo "::add-mask::$TOKEN"
+          echo "FABRIC_TOKEN=$TOKEN" >> $GITHUB_ENV
+
+      - name: Run Fabric Orchestrator
+        run: python infrastructure/fabric_orchestrator.py --workspace-name "FinancialRevenuePlatform" --git-repo "marirainier/financial-platform"
         env:
-          FABRIC_TOKEN: ${{ secrets.FABRIC_TOKEN }}
+          FABRIC_TOKEN: ${{ env.FABRIC_TOKEN }}
