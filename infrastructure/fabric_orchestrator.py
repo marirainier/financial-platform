@@ -76,55 +76,32 @@ def main():
             print('Warning: --git-repo not provided. Skipping Git integration.')
             print('Provide --git-repo org/repo to enable GitHub integration, or use --skip-git')
         else:
-            # Format gitProviderDetails payload according to Fabric v1 API requirements
-            repo_parts = args.git_repo.split('/')
-            owner = repo_parts[0] if len(repo_parts) == 2 else ''
-            name = repo_parts[1] if len(repo_parts) == 2 else args.git_repo
-
-            # Format directory path: must start with slash or be empty/root
-            directory = args.git_directory.strip('/')
-            directory_path = f"/{directory}" if directory else "/"
-
+            # 2. Git Connect
             git_config = {
                 'gitProviderDetails': {
                     'gitProvider': args.git_provider,
-                    'ownerName': owner,
                     'organizationName': owner,
                     'repositoryName': name,
                     'branchName': args.git_branch,
                     'directoryName': directory_path
-                },
-                'serviceType': 'GitHub'
+                }
             }
             try:
-                # 1. Connect to Git
-                print(f"Connecting workspace {ws_id} to Git ({args.git_provider}: {owner}/{name}, branch: {args.git_branch}, dir: {directory_path})...")
+                print(f"Connecting workspace {ws_id} to Git...")
                 fabric_api_call('POST', f'workspaces/{ws_id}/git/connect', token, git_config)
-                print(f'Git Connected to {args.git_provider}: {args.git_repo}')
+                print('Git Connected.')
             except Exception as e:
-                # If connection fails with 400 because it is already connected, try continuing
-                print(f"Git Connect response/warning: {e}")
+                print(f"Git Connect skipped or failed (already connected?): {e}")
 
+            # 3. Git Update (simple sync)
             try:
-                # 2. Sync / Update from Git (Initialize connection / sync)
-                print("Initiating Git sync (initializeConnectionAndSync / updateFromGit)...")
-                # Try initializeConnectionAndSync first if supported, else updateFromGit
-                try:
-                    fabric_api_call('POST', f'workspaces/{ws_id}/git/initializeConnectionAndSync', token, {
-                        'gitAction': 'Import',
-                        'remoteCommitHash': ''
-                    })
-                    print('Initialize Connection and Sync Complete.')
-                except Exception:
-                    # Fallback to updateFromGit with minimal required payload
-                    fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, {
-                        'head': args.git_branch,
-                        'workspaceHead': args.git_branch
-                    })
-                    print('Sync from Git Complete.')
+                print("Syncing from Git...")
+                fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, {
+                    'mode': 'All'
+                })
+                print('Sync from Git Complete.')
             except Exception as e:
                 print(f"Git Update call failed: {e}")
-                print("Note: Service Principals (OIDC) require tenant-level 'Service principals can use Fabric APIs' and 'Service principals can integrate with Git' tenant settings enabled in Fabric Admin Portal.")
                 raise e
     else:
         print('Git integration skipped (--skip-git).')
