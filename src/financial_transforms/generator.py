@@ -93,6 +93,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.mode in ["hot", "both"]:
-        run_hot_path_stream(interval_sec=0.1, count=args.hot-count, output_file="data/sample/hot_stream_batch.json")
+        run_hot_path_stream(interval_sec=0.1, count=args.hot_count, output_file="data/sample/hot_stream_batch.json")
     if args.mode in ["cold", "both"]:
-        run_cold_path_batch(num_records=args.cold-count, output_file="data/sample/cold_path_invoices.csv")
+        run_cold_path_batch(num_records=args.cold_count, output_file="data/sample/cold_path_invoices.csv")
