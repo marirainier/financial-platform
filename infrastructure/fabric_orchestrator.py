@@ -93,7 +93,8 @@ def main():
                     'repositoryName': name,
                     'branchName': args.git_branch,
                     'directoryName': directory_path
-                }
+                },
+                'serviceType': 'GitHub'
             }
             try:
                 # 1. Connect to Git
@@ -105,19 +106,22 @@ def main():
                 print(f"Git Connect response/warning: {e}")
 
             try:
-                # 2. Sync / Update from Git
-                print("Initiating Git sync (updateFromGit)...")
-                fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, {
-                    'workspaceHead': 'HEAD',
-                    'remoteCommitHash': '',
-                    'conflictResolution': {
-                        'conflictResolutionType': 'PreferRemote'
-                    },
-                    'options': {
-                        'allowExceptions': True
-                    }
-                })
-                print('Sync from Git Complete.')
+                # 2. Sync / Update from Git (Initialize connection / sync)
+                print("Initiating Git sync (initializeConnectionAndSync / updateFromGit)...")
+                # Try initializeConnectionAndSync first if supported, else updateFromGit
+                try:
+                    fabric_api_call('POST', f'workspaces/{ws_id}/git/initializeConnectionAndSync', token, {
+                        'gitAction': 'Import',
+                        'remoteCommitHash': ''
+                    })
+                    print('Initialize Connection and Sync Complete.')
+                except Exception:
+                    # Fallback to updateFromGit with minimal required payload
+                    fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, {
+                        'head': args.git_branch,
+                        'workspaceHead': args.git_branch
+                    })
+                    print('Sync from Git Complete.')
             except Exception as e:
                 print(f"Git Update call failed: {e}")
                 print("Note: Service Principals (OIDC) require tenant-level 'Service principals can use Fabric APIs' and 'Service principals can integrate with Git' tenant settings enabled in Fabric Admin Portal.")
