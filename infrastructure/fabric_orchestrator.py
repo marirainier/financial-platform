@@ -74,8 +74,14 @@ def main():
     if not args.skip_git:
         if not args.git_repo:
             print('Warning: --git-repo not provided. Skipping Git integration.')
-            print('Provide --git-repo org/repo to enable GitHub integration, or use --skip-git')
         else:
+            # Convert org/repo to owner/repository structure
+            repo_parts = args.git_repo.split('/')
+            owner = repo_parts[0] if len(repo_parts) == 2 else ''
+            name = repo_parts[1] if len(repo_parts) == 2 else args.git_repo
+            directory = args.git_directory.strip('/')
+            directory_path = f"/{directory}" if directory else "/"
+
             # 2. Git Connect
             git_config = {
                 'gitProviderDetails': {
