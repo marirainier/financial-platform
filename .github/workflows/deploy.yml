@@ -2,7 +2,7 @@
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
 
 # Required permission to request the OIDC token from GitHub
 permissions:
