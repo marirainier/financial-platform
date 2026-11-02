@@ -48,6 +48,7 @@ jobs:
             --git-provider GitHub \
             --git-repo "${{ github.repository }}" \
             --git-branch "${{ github.ref_name }}" \
-            --git-directory "fabric"
+            --git-directory "fabric" \
+            --git-pat "${{ secrets.GIT_PAT }}"
         env:
           FABRIC_TOKEN: ${{ env.FABRIC_TOKEN }}

@@ -27,6 +27,7 @@ def main():
     parser.add_argument('--git-repo', help='GitHub: owner/repo, ADO: org/project/repo')
     parser.add_argument('--git-branch', default='main')
     parser.add_argument('--git-directory', default='/fabric')
+    parser.add_argument('--git-pat', required=True)
     args = parser.parse_args()
 
     token = os.environ.get('FABRIC_TOKEN')
@@ -51,6 +52,10 @@ def main():
                 'branchName': args.git_branch,
                 'directoryName': args.git_directory,
                 'repositoryName': repo_parts[-1]
+            },
+            'myGitCredentials': {
+                'source': 'PersonalAccessToken',
+                'personalAccessToken': args.git_pat
             }
         }
         if args.git_provider == 'GitHub':
