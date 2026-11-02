@@ -102,8 +102,11 @@ def main():
             # 3. Git Update (simple sync)
             try:
                 print("Syncing from Git...")
+                import subprocess
+                commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip()
                 fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, {
-                    'mode': 'All'
+                    'mode': 'All',
+                    'remoteCommitHash': commit_hash
                 })
                 print('Sync from Git Complete.')
             except Exception as e:
