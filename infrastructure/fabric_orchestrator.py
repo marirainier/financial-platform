@@ -1,110 +1,80 @@
 ﻿import requests
 import argparse
 import os
+import subprocess
+import time
 
 def fabric_api_call(method, endpoint, token, data=None):
     headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
     url = f'https://api.fabric.microsoft.com/v1/{endpoint}'
     response = requests.request(method, url, headers=headers, json=data)
+
     if not response.ok:
         print(f"API Error ({response.status_code}) on {method} {url}: {response.text}")
     response.raise_for_status()
-    return response.json() if response.text else {}
 
-def get_trial_capacity_id(token):
-    """Get the first available Fabric Trial capacity ID."""
-    try:
-        capacities = fabric_api_call('GET', 'capacities', token)
-        for cap in capacities.get('value', []):
-            if cap.get('sku', '').startswith('Trial') or cap.get('sku', '').startswith('F'):
-                return cap['id']
-    except Exception as e:
-        print(f'Warning: Could not fetch capacities: {e}')
-    return None
+    # Handle LRO (202) if needed
+    if response.status_code == 202:
+        print("Operation Accepted (202). Polling...")
+        # Polling logic for simplicity (can be enhanced)
+        time.sleep(10)
+    return response.json() if response.text else {}
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--capacity-id', help='Fabric capacity ID (optional, will try to find Trial capacity)')
     parser.add_argument('--workspace-name', default='FinancialRevenuePlatform')
-    parser.add_argument('--git-provider', choices=['GitHub', 'AzureDevOps'], default='GitHub', help='Git provider for Fabric Git integration')
-    parser.add_argument('--git-repo', help='Git repository name (e.g., org/repo)')
-    parser.add_argument('--git-branch', default='main', help='Git branch')
-    parser.add_argument('--git-directory', default='fabric', help='Directory in repo for Fabric items')
-    parser.add_argument('--skip-git', action='store_true', help='Skip Git integration setup')
+    parser.add_argument('--git-provider', choices=['GitHub', 'AzureDevOps'], default='GitHub')
+    parser.add_argument('--git-repo', help='GitHub: owner/repo, ADO: org/project/repo')
+    parser.add_argument('--git-branch', default='main')
+    parser.add_argument('--git-directory', default='/fabric')
     args = parser.parse_args()
 
     token = os.environ.get('FABRIC_TOKEN')
-    if not token:
-        raise ValueError('FABRIC_TOKEN environment variable not set')
 
-    workspace_name = args.workspace_name
-    capacity_id = args.capacity_id
+    # 1. Resolve Workspace
+    workspaces = fabric_api_call('GET', 'workspaces', token)
+    ws = next((w for w in workspaces.get('value', []) if w.get('displayName') == args.workspace_name), None)
+    if not ws:
+        ws = fabric_api_call('POST', 'workspaces', token, {'displayName': args.workspace_name})
+    ws_id = ws['id']
 
-    # If no capacity specified, try to find a Trial capacity
-    if not capacity_id:
-        print('No capacity specified, searching for Fabric Trial capacity...')
-        capacity_id = get_trial_capacity_id(token)
-        if capacity_id:
-            print(f'Found Trial capacity: {capacity_id}')
-        else:
-            print('No Trial capacity found. Workspace will be created without capacity (use --capacity-id to specify).')
-
-    # 1. Check if workspace already exists, otherwise create it
-    print(f"Checking existing workspaces for '{workspace_name}'...")
+    # 2. Check Git Connection
     try:
-        workspaces_response = fabric_api_call('GET', 'workspaces', token)
-        existing_ws = next((w for w in workspaces_response.get('value', []) if w.get('displayName') == workspace_name), None)
-
-        if existing_ws:
-            ws_id = existing_ws['id']
-            print(f"Found existing workspace: {ws_id}")
-        else:
-            workspace_data = {'displayName': workspace_name}
-            if capacity_id:
-                workspace_data['capacityId'] = capacity_id
-
-            ws = fabric_api_call('POST', 'workspaces', token, workspace_data)
-            ws_id = ws['id']
-            print(f'Workspace Created: {ws_id}')
-    except Exception as create_err:
-        print(f"Error handling workspace creation/lookup: {create_err}")
-        raise create_err
-
-    # 2. Git Connect (if not skipped)
-    if not args.skip_git:
-        if not args.git_repo:
-            print('Warning: --git-repo not provided. Skipping Git integration.')
-            print('Provide --git-repo org/repo to enable GitHub integration, or use --skip-git')
-        else:
-            # 2. Git Connect
-            git_config = {
-                'gitProviderDetails': {
-                    'gitProvider': args.git_provider,
-                    'organizationName': owner,
-                    'repositoryName': name,
-                    'branchName': args.git_branch,
-                    'directoryName': directory_path
-                }
+        status = fabric_api_call('GET', f'workspaces/{ws_id}/git/status', token)
+        print("Workspace is already connected to Git.")
+    except:
+        print("Connecting to Git...")
+        repo_parts = args.git_repo.split('/')
+        git_config = {
+            'gitProviderDetails': {
+                'gitProviderType': args.git_provider,
+                'branchName': args.git_branch,
+                'directoryName': args.git_directory,
+                'repositoryName': repo_parts[-1]
             }
-            try:
-                print(f"Connecting workspace {ws_id} to Git...")
-                fabric_api_call('POST', f'workspaces/{ws_id}/git/connect', token, git_config)
-                print('Git Connected.')
-            except Exception as e:
-                print(f"Git Connect skipped or failed (already connected?): {e}")
+        }
+        if args.git_provider == 'GitHub':
+            git_config['gitProviderDetails']['ownerName'] = repo_parts[0]
+        else:
+            git_config['gitProviderDetails']['organizationName'] = repo_parts[0]
+            git_config['gitProviderDetails']['projectName'] = repo_parts[1]
 
-            # 3. Git Update (simple sync)
-            try:
-                print("Syncing from Git...")
-                fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, {
-                    'mode': 'All'
-                })
-                print('Sync from Git Complete.')
-            except Exception as e:
-                print(f"Git Update call failed: {e}")
-                raise e
-    else:
-        print('Git integration skipped (--skip-git).')
+        fabric_api_call('POST', f'workspaces/{ws_id}/git/connect', token, git_config)
+
+        # Initialize
+        fabric_api_call('POST', f'workspaces/{ws_id}/git/initializeConnection', token, {'initializationStrategy': 'PreferRemote'})
+        print("Connected and Initialized.")
+
+    # 3. Sync
+    commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip()
+    print(f"Syncing to commit: {commit_hash}")
+    fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, {
+        'mode': 'All',
+        'remoteCommitHash': commit_hash,
+        'conflictResolution': {'conflictResolutionType': 'Workspace', 'conflictResolutionPolicy': 'PreferRemote'},
+        'options': {'allowOverrideItems': True}
+    })
+    print("Sync Complete.")
 
 if __name__ == '__main__':
     main()
