@@ -230,13 +230,18 @@ def main():
             commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip()
             print(f"Syncing to commit: {commit_hash}")
 
-            # First sync needs different conflict resolution for empty workspace
-            # Check if workspace has any items first
-            try:
-                items = fabric_api_call('GET', f'workspaces/{ws_id}/items', token)
-                has_items = len(items.get('value', [])) > 0
-            except:
-                has_items = False
+            # POLL for Git connection stability before syncing
+            max_retries = 5
+            for i in range(max_retries):
+                try:
+                    status = fabric_api_call('GET', f'workspaces/{ws_id}/git/status', token)
+                    print(f"Git status check {i+1}: {status.get('workspaceHead', 'None')}")
+                    # If it has a head, we are good to sync
+                    if status.get('workspaceHead'):
+                        break
+                    time.sleep(10) # Increased wait for Fabric to catch up
+                except:
+                    time.sleep(10)
 
             sync_payload = {
                 'mode': 'All',
@@ -247,11 +252,6 @@ def main():
                 },
                 'options': {'allowOverrideItems': True}
             }
-
-            # For first sync on empty workspace, use different approach
-            if not has_items:
-                print("First sync on empty workspace - using force sync...")
-                sync_payload['options']['allowOverrideItems'] = True
 
             fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, sync_payload)
             print("Sync Complete.")
