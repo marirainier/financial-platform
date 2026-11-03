@@ -245,13 +245,15 @@ def main():
 
             sync_payload = {
                 'mode': 'All',
-                'remoteCommitHash': commit_hash,
                 'conflictResolution': {
                     'conflictResolutionType': 'Workspace',
                     'conflictResolutionPolicy': 'PreferRemote'
                 },
                 'options': {'allowOverrideItems': True}
             }
+            # Only include hash if we have one
+            # if commit_hash:
+            #     sync_payload['remoteCommitHash'] = commit_hash
 
             fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, sync_payload)
             print("Sync Complete.")
