@@ -29,19 +29,13 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
 
-      - name: Get Fabric Bearer Token
-        id: get-token
-        run: |
-          TOKEN=$(az account get-access-token --resource https://analysis.windows.net/powerbi/api --query accessToken -o tsv)
-          echo "::add-mask::$TOKEN"
-          echo "FABRIC_TOKEN=$TOKEN" >> $GITHUB_ENV
-
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests
+          pip install -r requirements.txt
 
       - name: Run Fabric Orchestrator
+        # Uses DefaultAzureCredential which automatically picks up OIDC token from azure/login
         run: |
           python infrastructure/fabric_orchestrator.py \
             --workspace-name "FinancialRevenuePlatform" \
@@ -50,5 +44,3 @@ jobs:
             --git-branch "${{ github.ref_name }}" \
             --git-directory "fabric" \
             --git-pat "${{ secrets.GIT_PAT }}"
-        env:
-          FABRIC_TOKEN: ${{ env.FABRIC_TOKEN }}

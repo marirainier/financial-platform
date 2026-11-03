@@ -55,6 +55,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
       # Authenticate securely to Azure via Workload Identity Federation (OIDC)
       - name: Azure OIDC Login
@@ -64,16 +65,13 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
 
-      - name: Get Fabric Bearer Token
-        id: get-token
+      - name: Install Dependencies
         run: |
-          TOKEN=$(az account get-access-token --resource https://analysis.windows.net/powerbi/api --query accessToken -o tsv)
-          echo "::add-mask::$TOKEN"
-          echo "FABRIC_TOKEN=$TOKEN" >> $GITHUB_ENV
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Deploy to Fabric Workspace
-        env:
-          FABRIC_TOKEN: ${{ env.FABRIC_TOKEN }}
+        # Uses DefaultAzureCredential which automatically picks up OIDC token from azure/login
         run: |
           python infrastructure/fabric_orchestrator.py \
             --workspace-name "FinancialRevenuePlatform" \
