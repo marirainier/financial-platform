@@ -231,29 +231,27 @@ def main():
             print(f"Syncing to commit: {commit_hash}")
 
             # POLL for Git connection stability before syncing
-            max_retries = 5
+            max_retries = 10
             for i in range(max_retries):
                 try:
                     status = fabric_api_call('GET', f'workspaces/{ws_id}/git/status', token)
-                    print(f"Git status check {i+1}: {status.get('workspaceHead', 'None')}")
-                    # If it has a head, we are good to sync
-                    if status.get('workspaceHead'):
+                    print(f"Git status check {i+1}: Head={status.get('workspaceHead')}, Remote={status.get('remoteCommitHash')}")
+                    # If it's initialized and has a remote hash, we can sync
+                    if status.get('remoteCommitHash'):
                         break
-                    time.sleep(10) # Increased wait for Fabric to catch up
+                    time.sleep(15)
                 except:
-                    time.sleep(10)
+                    time.sleep(15)
 
             sync_payload = {
                 'mode': 'All',
+                'remoteCommitHash': commit_hash,
                 'conflictResolution': {
                     'conflictResolutionType': 'Workspace',
                     'conflictResolutionPolicy': 'PreferRemote'
                 },
                 'options': {'allowOverrideItems': True}
             }
-            # Only include hash if we have one
-            # if commit_hash:
-            #     sync_payload['remoteCommitHash'] = commit_hash
 
             fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, sync_payload)
             print("Sync Complete.")
