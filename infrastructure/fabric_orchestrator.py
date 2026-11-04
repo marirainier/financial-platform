@@ -224,28 +224,14 @@ def main():
             print(f"Response: {e.response.text}")
             sys.exit(1)
 
-    # 4. Sync from Git
+            # 4. Sync from Git
     if not args.skip_git_connection:
         try:
-            commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip()
-            print(f"Syncing to commit: {commit_hash}")
-
-            # POLL for Git connection stability before syncing
-            max_retries = 10
-            for i in range(max_retries):
-                try:
-                    status = fabric_api_call('GET', f'workspaces/{ws_id}/git/status', token)
-                    print(f"Git status check {i+1}: Head={status.get('workspaceHead')}, Remote={status.get('remoteCommitHash')}")
-                    # If it's initialized and has a remote hash, we can sync
-                    if status.get('remoteCommitHash'):
-                        break
-                    time.sleep(15)
-                except:
-                    time.sleep(15)
-
+            # For the first sync on a newly created workspace, we omit remoteCommitHash
+            # to let Fabric automatically sync with the branch's latest HEAD commit
+            # and avoid WorkspaceHeadMismatch errors.
             sync_payload = {
                 'mode': 'All',
-                'remoteCommitHash': commit_hash,
                 'conflictResolution': {
                     'conflictResolutionType': 'Workspace',
                     'conflictResolutionPolicy': 'PreferRemote'
@@ -253,6 +239,7 @@ def main():
                 'options': {'allowOverrideItems': True}
             }
 
+            print(f"Syncing workspace (Mode: All)...")
             fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, sync_payload)
             print("Sync Complete.")
         except subprocess.CalledProcessError:
