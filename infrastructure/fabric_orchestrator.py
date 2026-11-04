@@ -1,7 +1,6 @@
 ﻿import requests
 import argparse
 import os
-import subprocess
 import time
 import sys
 
@@ -224,21 +223,29 @@ def main():
             print(f"Response: {e.response.text}")
             sys.exit(1)
 
-            # 4. Sync from Git
+    # 4. Sync from Git (update workspace from Git branch)
     if not args.skip_git_connection:
         try:
-            commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip()
-            print(f"Syncing workspace to commit: {commit_hash}")
-
             # POLL for Git status readiness before invoking updateFromGit
+            # We need BOTH workspaceHead and remoteCommitHash from the status
             max_retries = 15
             wait_seconds = 10
+            workspace_head = None
+            remote_commit_hash = None
 
             for i in range(max_retries):
                 try:
                     status = fabric_api_call('GET', f'workspaces/{ws_id}/git/status', token)
                     print(f"Poll {i+1}/{max_retries}: Git status retrieved successfully.")
-                    if status.get('remoteCommitHash') or status.get('workspaceHead') is not None:
+                    print(f"  workspaceHead: {status.get('workspaceHead')}")
+                    print(f"  remoteCommitHash: {status.get('remoteCommitHash')}")
+                    print(f"  changes: {len(status.get('changes', []))}")
+
+                    workspace_head = status.get('workspaceHead')
+                    remote_commit_hash = status.get('remoteCommitHash')
+
+                    # Both heads must be present to proceed with updateFromGit
+                    if workspace_head and remote_commit_hash:
                         break
                 except requests.exceptions.HTTPError as e:
                     print(f"Poll {i+1}/{max_retries}: Git status not ready yet ({e.response.status_code}). Waiting {wait_seconds}s...")
@@ -247,22 +254,30 @@ def main():
 
                 time.sleep(wait_seconds)
 
-            sync_payload = {
-                'mode': 'All',
-                'remoteCommitHash': commit_hash,
-                'conflictResolution': {
-                    'conflictResolutionType': 'Workspace',
-                    'conflictResolutionPolicy': 'PreferRemote'
-                },
-                'options': {'allowOverrideItems': True}
-            }
+            if not workspace_head or not remote_commit_hash:
+                print("ERROR: Failed to get both workspaceHead and remoteCommitHash from git/status")
+                sys.exit(1)
 
-            print(f"Triggering updateFromGit with commit hash: {commit_hash}")
-            fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, sync_payload)
-            print("Sync Complete.")
-        except subprocess.CalledProcessError:
-            print("ERROR: Failed to get git commit hash.")
-            sys.exit(1)
+            # Check if already synced
+            if workspace_head == remote_commit_hash:
+                print(f"Workspace already synced at commit: {workspace_head}")
+                print("Sync Complete.")
+            else:
+                print(f"Syncing workspace from {workspace_head} to {remote_commit_hash}")
+
+                sync_payload = {
+                    'workspaceHead': workspace_head,
+                    'remoteCommitHash': remote_commit_hash,
+                    'conflictResolution': {
+                        'conflictResolutionType': 'Workspace',
+                        'conflictResolutionPolicy': 'PreferRemote'
+                    },
+                    'options': {'allowOverrideItems': True}
+                }
+
+                print(f"Triggering updateFromGit...")
+                fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, sync_payload)
+                print("Sync Complete.")
         except requests.exceptions.HTTPError as e:
             print(f"ERROR during sync: {e.response.status_code}")
             print(f"Response: {e.response.text}")
