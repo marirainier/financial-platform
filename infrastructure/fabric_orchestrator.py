@@ -227,11 +227,29 @@ def main():
             # 4. Sync from Git
     if not args.skip_git_connection:
         try:
-            # For the first sync on a newly created workspace, we omit remoteCommitHash
-            # to let Fabric automatically sync with the branch's latest HEAD commit
-            # and avoid WorkspaceHeadMismatch errors.
+            commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip()
+            print(f"Syncing workspace to commit: {commit_hash}")
+
+            # POLL for Git status readiness before invoking updateFromGit
+            max_retries = 15
+            wait_seconds = 10
+
+            for i in range(max_retries):
+                try:
+                    status = fabric_api_call('GET', f'workspaces/{ws_id}/git/status', token)
+                    print(f"Poll {i+1}/{max_retries}: Git status retrieved successfully.")
+                    if status.get('remoteCommitHash') or status.get('workspaceHead') is not None:
+                        break
+                except requests.exceptions.HTTPError as e:
+                    print(f"Poll {i+1}/{max_retries}: Git status not ready yet ({e.response.status_code}). Waiting {wait_seconds}s...")
+                except Exception as e:
+                    print(f"Poll {i+1}/{max_retries}: Waiting for git status... ({e})")
+
+                time.sleep(wait_seconds)
+
             sync_payload = {
                 'mode': 'All',
+                'remoteCommitHash': commit_hash,
                 'conflictResolution': {
                     'conflictResolutionType': 'Workspace',
                     'conflictResolutionPolicy': 'PreferRemote'
@@ -239,7 +257,7 @@ def main():
                 'options': {'allowOverrideItems': True}
             }
 
-            print(f"Syncing workspace (Mode: All)...")
+            print(f"Triggering updateFromGit with commit hash: {commit_hash}")
             fabric_api_call('POST', f'workspaces/{ws_id}/git/updateFromGit', token, sync_payload)
             print("Sync Complete.")
         except subprocess.CalledProcessError:
